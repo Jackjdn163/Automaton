@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Create Automation Planner</title>
+<style>
+  :root {
+    --panel: #171512;
+    --panel-2: #252018;
+    --gold: #d8a24c;
+    --brass: #8a6531;
+    --iron: #8f9699;
+    --red: #e3483b;
+    --green: #44d06f;
+    --blue: #4fa3d1;
+    --text: #f2eadb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #101010;
+    color: var(--text);
+    font-family: Arial, sans-serif;
+  }
+
+  #toolbar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 220px;
+    height: 100vh;
+    background: linear-gradient(180deg, #241d15, #12100d);
+    border-right: 4px solid #5b4123;
+    padding: 14px;
+    z-index: 20;
+    box-shadow: 6px 0 18px rgba(0,0,0,.45);
+  }
+
+  h2 {
+    margin: 0 0 14px;
+    font-size: 20px;
+    color: #ffd98a;
+  }
+
+  .tool-button {
+    width: 100%;
+    margin-bottom: 9px;
+    padding: 10px;
+    background: #2d251b;
+    color: var(--text);
+    border: 2px solid #6b512c;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .tool-button:hover { background: #3a3023; }
+
+  .tool-button.active {
+    border-color: #ffd15c;
+    box-shadow: 0 0 0 2px rgba(255,209,92,.25), inset 0 0 14px rgba(255,209,92,.15);
+  }
+
+  #selectedTool {
+    margin: 14px 0;
+    padding: 10px;
+    background: #0d0c0a;
+    border: 2px solid #806033;
+    border-radius: 8px;
+    color: #ffd98a;
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    line-height: 1.35;
+    color: #c9bca6;
+  }
+
+  #viewport {
+    position: absolute;
+    left: 220px;
+    top: 0;
+    width: calc(100vw - 220px);
+    height: 100vh;
+    overflow: hidden;
+    cursor: grab;
+    background:
+      radial-gradient(circle at center, rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+      #151515;
+    background-size: 120px 120px, 40px 40px, 40px 40px;
+  }
+
+  #world {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 5000px;
+    height: 5000px;
+    transform-origin: 0 0;
+  }
+
+  #connections {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 5000px;
+    height: 5000px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .gauge {
+    position: absolute;
+    width: 165px;
+    min-height: 90px;
+    padding: 12px;
+    border-radius: 14px;
+    user-select: none;
+    cursor: grab;
+    text-align: center;
+    background:
+      linear-gradient(135deg, #54412a, #1d1710 55%, #332617);
+    border: 4px solid var(--brass);
+    box-shadow:
+      inset 0 0 0 3px rgba(255,226,155,.12),
+      inset 0 -12px 20px rgba(0,0,0,.3),
+      0 8px 20px rgba(0,0,0,.45);
+  }
+
+  .gauge::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 20px;
+    border: 3px solid #2b2116;
+    pointer-events: none;
+  }
+
+  .gauge::after {
+    content: "";
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    width: 42px;
+    height: 16px;
+    transform: translateX(-50%);
+    border-radius: 8px 8px 3px 3px;
+    background: linear-gradient(#c49a53, #6d4d22);
+    border: 2px solid #2a2013;
+  }
+
+  .process {
+    background:
+      linear-gradient(135deg, #263c4d, #101820 58%, #1b2a36);
+    border-color: #4fa3d1;
+  }
+
+  .gauge.selected {
+    outline: 4px solid #ffe76d;
+    box-shadow:
+      0 0 20px rgba(255,231,109,.75),
+      inset 0 0 0 3px rgba(255,226,155,.12),
+      inset 0 -12px 20px rgba(0,0,0,.3),
+      0 8px 20px rgba(0,0,0,.45);
+  }
+
+  .gauge.automated {
+    border-color: var(--green);
+  }
+
+  .gauge input[type="text"] {
+    width: 100%;
+    padding: 7px;
+    margin-bottom: 8px;
+    color: white;
+    background: rgba(0,0,0,.55);
+    border: 2px solid rgba(255,255,255,.25);
+    border-radius: 6px;
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .gauge label {
+    font-size: 12px;
+    color: #ddd0bc;
+  }
+
+  .delete-note {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #bba98e;
+  }
+</style>
+</head>
+<body>
+  <aside id="toolbar">
+    <h2>⚙ Create Planner</h2>
+    <button class="tool-button active" id="selectBtn" onclick="setTool('select')">✋ Select / Move</button>
+    <button class="tool-button" id="itemBtn" onclick="addNode('item')">🟩 Add Item Gauge</button>
+    <button class="tool-button" id="processBtn" onclick="addNode('process')">🔧 Add Process Gauge</button>
+    <button class="tool-button" id="arrowBtn" onclick="setTool('arrow')">➡ Arrow Tool</button>
+    <button class="tool-button" onclick="deleteSelected()">🗑 Delete Selected</button>
+    <button class="tool-button" onclick="savePlan()">💾 Save</button>
+    <button class="tool-button" onclick="loadPlan()">📂 Load</button>
+    <button class="tool-button" onclick="clearPlan()">🧹 Clear</button>
+
+    <div id="selectedTool">Selected Tool: Select / Move</div>
+
+    <p class="hint">
+      Mouse wheel = zoom<br>
+      Drag empty space = pan<br>
+      Arrow Tool = click start gauge, then end gauge<br>
+      Automated gauges turn outgoing arrows green.
+    </p>
+    <p class="delete-note">Tip: label process gauges like “Crushing,” “Washing,” “Bulk Farming,” or “Botany Pot.”</p>
+  </aside>
+
+  <main id="viewport">
+    <div id="world">
+      <svg id="connections">
+        <defs>
+          <marker id="arrow-red" markerWidth="18" markerHeight="18" refX="15" refY="6" orient="auto">
+            <polygon points="0 0, 15 6, 0 12" fill="#e3483b"></polygon>
+          </marker>
+          <marker id="arrow-green" markerWidth="18" markerHeight="18" refX="15" refY="6" orient="auto">
+            <polygon points="0 0, 15 6, 0 12" fill="#44d06f"></polygon>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </main>
+
+<script>
+const viewport = document.getElementById("viewport");
+const world = document.getElementById("world");
+const svg = document.getElementById("connections");
+
+let nodes = [];
+let arrows = [];
+let selectedNode = null;
+let currentTool = "select";
+let arrowStart = null;
+let idCounter = 1;
+
+let scale = 1;
+let panX = -1800;
+let panY = -1900;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+
+updateTransform();
+
+function setTool(tool) {
+  currentTool = tool;
+  arrowStart = null;
+  document.querySelectorAll(".tool-button").forEach(b => b.classList.remove("active"));
+  document.getElementById("selectBtn").classList.toggle("active", tool === "select");
+  document.getElementById("arrowBtn").classList.toggle("active", tool === "arrow");
+  document.getElementById("selectedTool").textContent =
+    "Selected Tool: " + (tool === "arrow" ? "Arrow Connector" : "Select / Move");
+}
+
+function addNode(type) {
+  const node = document.createElement("div");
+  node.className = "gauge " + (type === "process" ? "process" : "");
+  node.dataset.id = String(idCounter++);
+  node.dataset.type = type;
+  node.dataset.automated = "false";
+  node.style.left = (2100 + Math.random() * 200) + "px";
+  node.style.top = (2100 + Math.random() * 160) + "px";
+
+  node.innerHTML = `
+    <input type="text" placeholder="${type === "process" ? "Process name" : "Item name"}">
+    <label><input type="checkbox"> Automated</label>
+  `;
+
+  world.appendChild(node);
+  nodes.push(node);
+  makeDraggable(node);
+
+  node.querySelector("input[type='checkbox']").addEventListener("change", e => {
+    node.dataset.automated = e.target.checked ? "true" : "false";
+    node.classList.toggle("automated", e.target.checked);
+    drawArrows();
+  });
+
+  node.addEventListener("click", e => {
+    e.stopPropagation();
+    if (currentTool === "arrow") handleArrowClick(node);
+    else selectNode(node);
+  });
+
+  selectNode(node);
+  setTool("select");
+  drawArrows();
+}
+
+function selectNode(node) {
+  if (selectedNode) selectedNode.classList.remove("selected");
+  selectedNode = node;
+  node.classList.add("selected");
+}
+
+function handleArrowClick(node) {
+  if (!arrowStart) {
+    arrowStart = node;
+    selectNode(node);
+    document.getElementById("selectedTool").textContent = "Selected Tool: Arrow Connector — choose destination";
+  } else {
+    if (arrowStart !== node) {
+      arrows.push({ from: arrowStart.dataset.id, to: node.dataset.id });
+    }
+    arrowStart = null;
+    setTool("select");
+    drawArrows();
+  }
+}
+
+function makeDraggable(node) {
+  let dragging = false;
+  let startX = 0, startY = 0, nodeX = 0, nodeY = 0;
+
+  node.addEventListener("mousedown", e => {
+    if (e.target.tagName === "INPUT") return;
+    e.stopPropagation();
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    nodeX = parseFloat(node.style.left);
+    nodeY = parseFloat(node.style.top);
+    node.style.cursor = "grabbing";
+    selectNode(node);
+  });
+
+  window.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    node.style.left = nodeX + (e.clientX - startX) / scale + "px";
+    node.style.top = nodeY + (e.clientY - startY) / scale + "px";
+    drawArrows();
+  });
+
+  window.addEventListener("mouseup", () => {
+    dragging = false;
+    node.style.cursor = "grab";
+  });
+}
+
+viewport.addEventListener("mousedown", e => {
+  if (e.target !== viewport && e.target !== world && e.target !== svg) return;
+  isPanning = true;
+  panStart = { x: e.clientX - panX, y: e.clientY - panY };
+  viewport.style.cursor = "grabbing";
+});
+
+window.addEventListener("mousemove", e => {
+  if (!isPanning) return;
+  panX = e.clientX - panStart.x;
+  panY = e.clientY - panStart.y;
+  updateTransform();
+});
+
+window.addEventListener("mouseup", () => {
+  isPanning = false;
+  viewport.style.cursor = "grab";
+});
+
+viewport.addEventListener("wheel", e => {
+  e.preventDefault();
+
+  const oldScale = scale;
+  const zoomAmount = e.deltaY < 0 ? 1.1 : 0.9;
+  scale = Math.min(2.5, Math.max(0.25, scale * zoomAmount));
+
+  const rect = viewport.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  panX = mouseX - ((mouseX - panX) / oldScale) * scale;
+  panY = mouseY - ((mouseY - panY) / oldScale) * scale;
+
+  updateTransform();
+}, { passive: false });
+
+function updateTransform() {
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
+
+function getNode(id) {
+  return nodes.find(n => n.dataset.id === id);
+}
+
+function center(node) {
+  return {
+    x: parseFloat(node.style.left) + node.offsetWidth / 2,
+    y: parseFloat(node.style.top) + node.offsetHeight / 2
+  };
+}
+
+function drawArrows() {
+  const defs = svg.querySelector("defs").outerHTML;
+  svg.innerHTML = defs;
+
+  arrows.forEach(a => {
+    const fromNode = getNode(a.from);
+    const toNode = getNode(a.to);
+    if (!fromNode || !toNode) return;
+
+    const from = center(fromNode);
+    const to = center(toNode);
+
+    const dx = to.x - from.x;
+    const curve = Math.max(90, Math.abs(dx) * 0.45);
+
+    const c1x = from.x + curve;
+    const c1y = from.y;
+    const c2x = to.x - curve;
+    const c2y = to.y;
+
+    const automated = fromNode.dataset.automated === "true";
+    const color = automated ? "#44d06f" : "#e3483b";
+    const marker = automated ? "arrow-green" : "arrow-red";
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${from.x} ${from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${to.x} ${to.y}`);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", color);
+    path.setAttribute("stroke-width", "5");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("marker-end", `url(#${marker})`);
+    svg.appendChild(path);
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("r", "6");
+    dot.setAttribute("fill", color);
+    dot.innerHTML = `
+      <animateMotion dur="1.8s" repeatCount="indefinite"
+        path="M ${from.x} ${from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${to.x} ${to.y}" />
+    `;
+    svg.appendChild(dot);
+  });
+}
+
+function deleteSelected() {
+  if (!selectedNode) return;
+  const id = selectedNode.dataset.id;
+  arrows = arrows.filter(a => a.from !== id && a.to !== id);
+  nodes = nodes.filter(n => n !== selectedNode);
+  selectedNode.remove();
+  selectedNode = null;
+  drawArrows();
+}
+
+function savePlan() {
+  const data = {
+    nodes: nodes.map(n => ({
+      id: n.dataset.id,
+      type: n.dataset.type,
+      automated: n.dataset.automated,
+      left: n.style.left,
+      top: n.style.top,
+      label: n.querySelector("input[type='text']").value
+    })),
+    arrows,
+    idCounter,
+    panX,
+    panY,
+    scale
+  };
+  localStorage.setItem("createAutomationPlanner", JSON.stringify(data));
+  alert("Plan saved.");
+}
+
+function loadPlan() {
+  const raw = localStorage.getItem("createAutomationPlanner");
+  if (!raw) return alert("No saved plan found.");
+
+  clearPlan(false);
+  const data = JSON.parse(raw);
+
+  idCounter = data.idCounter || 1;
+  panX = data.panX ?? -1800;
+  panY = data.panY ?? -1900;
+  scale = data.scale ?? 1;
+  updateTransform();
+
+  data.nodes.forEach(saved => {
+    const node = document.createElement("div");
+    node.className = "gauge " + (saved.type === "process" ? "process" : "");
+    if (saved.automated === "true") node.classList.add("automated");
+    node.dataset.id = saved.id;
+    node.dataset.type = saved.type;
+    node.dataset.automated = saved.automated;
+    node.style.left = saved.left;
+    node.style.top = saved.top;
+    node.innerHTML = `
+      <input type="text" placeholder="${saved.type === "process" ? "Process name" : "Item name"}" value="${escapeHtml(saved.label || "")}">
+      <label><input type="checkbox" ${saved.automated === "true" ? "checked" : ""}> Automated</label>
+    `;
+
+    world.appendChild(node);
+    nodes.push(node);
+    makeDraggable(node);
+
+    node.querySelector("input[type='checkbox']").addEventListener("change", e => {
+      node.dataset.automated = e.target.checked ? "true" : "false";
+      node.classList.toggle("automated", e.target.checked);
+      drawArrows();
+    });
+
+    node.addEventListener("click", e => {
+      e.stopPropagation();
+      if (currentTool === "arrow") handleArrowClick(node);
+      else selectNode(node);
+    });
+  });
+
+  arrows = data.arrows || [];
+  drawArrows();
+}
+
+function clearPlan(confirmFirst = true) {
+  if (confirmFirst && !confirm("Clear the whole canvas?")) return;
+  nodes.forEach(n => n.remove());
+  nodes = [];
+  arrows = [];
+  selectedNode = null;
+  drawArrows();
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, s => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  }[s]));
+}
+
+viewport.addEventListener("click", () => {
+  if (selectedNode) selectedNode.classList.remove("selected");
+  selectedNode = null;
+});
+</script>
+</body>
+</html>
